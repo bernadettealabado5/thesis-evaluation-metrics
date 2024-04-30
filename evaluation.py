@@ -1,58 +1,59 @@
 import streamlit as st
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
-import seaborn as sns
+import timeit
 import io
+import contextlib
+import matplotlib.pyplot as plt
+import numpy as np
 
-def load_model(file_content):
+def execute_and_time(code, local_namespace):
     """
-    Load and return the model architecture from the given file content.
-    Assumes file_content is a string of Python code defining the model and its evaluation.
+    Execute the given code and measure execution time.
     """
-    local_namespace = {}
-    try:
-        exec(file_content, {}, local_namespace)
-    except Exception as e:
-        st.error(f"Error executing the uploaded model code: {e}")
-        return None, None
-    return local_namespace.get('model'), local_namespace.get('evaluate')
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        start_time = timeit.default_timer()
+        exec(code, {}, local_namespace)
+        end_time = timeit.default_timer()
+        output = buf.getvalue()
+    return local_namespace, end_time - start_time, output
 
 def plot_metrics(metrics):
     """
-    Generates plots for evaluation metrics using seaborn or matplotlib.
+    Generates a bar plot for the given metrics dictionary.
     """
-    fig, ax = plt.subplots()
-    sns.barplot(x=list(metrics.keys()), y=list(metrics.values()), ax=ax)
-    ax.set_title('Model Evaluation Metrics')
-    ax.set_ylabel('Score')
-    return fig
+    if metrics and isinstance(metrics, dict):
+        fig, ax = plt.subplots()
+        keys = list(metrics.keys())
+        values = [metrics[key] for key in keys]
+        ax.bar(keys, values, color='blue')
+        ax.set_xlabel('Metrics')
+        ax.set_ylabel('Values')
+        ax.set_title('Evaluation Metrics')
+        st.pyplot(fig)
+    else:
+        st.error("Metrics data is not in the expected format.")
 
 def app():
-    st.title("Model Evaluation App")
+    st.title("Python Code Analyzer")
+    st.subheader("Upload your Python script for analysis and evaluation.")
+    
+    code_file = st.file_uploader("Upload a Python file (.py)", type=["py"])
+    if code_file is not None:
+        code_content = code_file.getvalue().decode("utf-8")
+        st.code(code_content)
 
-    # File uploader allows user to add files
-    file = st.file_uploader("Upload a Python file containing your model architecture and evaluation code", type=["py"])
-    if file is not None:
-        # Read the file and convert to string
-        file_content = file.getvalue().decode("utf-8")
-
-        # Load model and evaluation function
-        model, evaluate = load_model(file_content)
-        
-        if model and evaluate:
-            # Button to evaluate model
-            if st.button('Evaluate Model'):
-                metrics = evaluate(model)
-                st.write("Evaluation Metrics:")
-                st.json(metrics)
+        if st.button("Analyze and Execute"):
+            local_namespace = {}
+            try:
+                local_namespace, exec_time, output = execute_and_time(code_content, local_namespace)
+                st.success(f"Executed in {exec_time:.4f} seconds")
+                st.text_area("Output", output, height=300)
                 
-                # Visualize the metrics
-                st.write("Metrics Visualization:")
-                fig = plot_metrics(metrics)
-                st.pyplot(fig)
-        else:
-            st.error("The uploaded script must define a 'model' object and an 'evaluate' function.")
+                if 'evaluate' in local_namespace:
+                    metrics = local_namespace['evaluate']()
+                    st.json(metrics)
+                    plot_metrics(metrics)
+            except Exception as e:
+                st.error(f"Error executing the Python code: {e}")
 
 if __name__ == "__main__":
     app()
