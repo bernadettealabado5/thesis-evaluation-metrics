@@ -1,5 +1,6 @@
 import streamlit as st
-import io
+import tempfile
+import os
 import time
 import matplotlib.pyplot as plt
 from contextlib import redirect_stdout, redirect_stderr
@@ -7,15 +8,24 @@ from flake8.api import legacy as flake8
 
 def analyze_code(code):
     """
-    Analyze the code using flake8 and return the formatted issues.
+    Analyze the code using flake8 by writing to a temporary file.
     """
-    with io.StringIO(code) as f:
-        checker = flake8.get_style_guide(ignore=['E501'], max_line_length=100)
-        report = checker.check_files([f.name])
-        report_string_io = io.StringIO()
-        checker.report(report, report_string_io)
-        report_string_io.seek(0)
-        return report_string_io.read(), report.get_statistics('E'), report.get_statistics('W')
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".py", mode='w+') as tmp:
+        tmp.write(code)
+        tmp_path = tmp.name
+    
+    # Run flake8 on the temporary file
+    checker = flake8.get_style_guide(ignore=['E501'], max_line_length=100)
+    report = checker.check_files([tmp_path])
+    
+    # Optionally delete the file here if not needed
+    os.unlink(tmp_path)
+
+    report_string_io = io.StringIO()
+    checker.report(report, report_string_io)
+    report_string_io.seek(0)
+    return report_string_io.read(), report.get_statistics('E'), report.get_statistics('W')
 
 def execute_code(code):
     """
