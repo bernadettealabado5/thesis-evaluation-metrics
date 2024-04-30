@@ -11,7 +11,11 @@ def load_model(file_content):
     Assumes file_content is a string of Python code defining the model and its evaluation.
     """
     local_namespace = {}
-    exec(file_content, globals(), local_namespace)
+    try:
+        exec(file_content, {}, local_namespace)
+    except Exception as e:
+        st.error(f"Error executing the uploaded model code: {e}")
+        return None, None
     return local_namespace.get('model'), local_namespace.get('evaluate')
 
 def plot_metrics(metrics):
