@@ -1,5 +1,6 @@
 import streamlit as st
 import tempfile
+import io
 import os
 import time
 import matplotlib.pyplot as plt
